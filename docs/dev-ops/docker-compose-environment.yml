@@ -1,4 +1,4 @@
-# docker-comopse -f docker-compose-environment.yml up -d
+# docker-compose -f docker-compose-environment.yml up -d
 version: '3'
 services:
   # 对话模型
