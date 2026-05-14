@@ -76,6 +76,10 @@
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
+	<dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
 
         <!-- 工程模块；启动依赖 trigger->domain, infrastructure-->
         <dependency>
