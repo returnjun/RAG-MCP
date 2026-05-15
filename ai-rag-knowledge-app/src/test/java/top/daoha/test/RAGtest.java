@@ -53,7 +53,7 @@ public class RAGtest {
         documents.forEach(doc -> doc.getMetadata().put("knowledge", "知识库"));
         split.forEach(doc -> doc.getMetadata().put("knowledge", "知识库"));
 
-        pgVectorStore.accept(documents);
+        pgVectorStore.accept(split);
         log.info("上传完成");
     }
 
@@ -61,7 +61,7 @@ public class RAGtest {
     @Test
     public void test2() {
         log.info("test2");
-        String message = "王大挂那一年出生";
+        String message = "王大挂那一年出生，只回答年份";
         String SYSTEM_PROMPT = """
                 Use the information from the DOCUMENTS section to provide accurate answers but act as if you knew this information innately.
                 If unsure, simply state that you don't know.

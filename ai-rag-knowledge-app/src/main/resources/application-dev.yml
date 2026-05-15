@@ -2,6 +2,15 @@ server:
   port: 8090
 
 spring:
+  ai:
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+    ollama:
+      base-url: http://82.157.190.244:11434
+      embedding:
+        options:
+          model: nomic-embed-text
   datasource:
     driver-class-name: org.postgresql.Driver
     username: postgres
@@ -26,13 +35,10 @@ spring:
       connection-timeout: 30000
       # 连接测试query
       connection-test-query: SELECT 1
-  ai:
-    ollama:
-      base-url: http://82.157.190.244:11434
-      embedding:
-        options:
-          model: nomic-embed-text # Spring Boot 会自动读取这个配置
-  spring:
+    # 1. AI 相关配置全部缩进在这里
+
+
+    # 2. 之前你写的 mvc 配置也在这里
     mvc:
       async:
         request-timeout: 300000
