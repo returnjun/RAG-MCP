@@ -2,6 +2,7 @@ package top.daoha.trigger.http;
 
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RList;
 import org.redisson.api.RedissonClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.ollama.OllamaChatModel;
@@ -9,9 +10,7 @@ import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import top.daoha.api.IRAGService;
 import top.daoha.api.response.Response;
@@ -39,13 +38,20 @@ public class RAGController implements IRAGService {
     private RedissonClient redissonClient;
 
 
+    @RequestMapping(value = "query_rag_tag_list",method = RequestMethod.GET)
     @Override
     public Response<List<String>> queryRagTagList() {
-        return null;
+        RList<String> elements = redissonClient.getList("ragTag");
+
+        return Response.<List<String>>builder()
+                .code("0000")
+                .info("调用成功")
+                .data(elements)
+                .build();
     }
 
     @Override
-    public Response<String> uploadFile(String ragTag, List<MultipartFile> files) {
+    public Response<String> uploadFile(@RequestParam String ragTag,@RequestParam("file") List<MultipartFile> files) {
         log.info("上传知识库开始:{}", ragTag);
         for (MultipartFile file : files) {
             TikaDocumentReader reader = new TikaDocumentReader(file.getResource());
@@ -56,9 +62,14 @@ public class RAGController implements IRAGService {
             split.forEach(doc -> doc.getMetadata().put("knowledge", ragTag));
 
             pgVectorStore.accept(split);
-            log.info("上传完成");
+
+            RList<String> elements = redissonClient.getList("ragTag");
+            if(!elements.contains(ragTag)){
+                elements.add(ragTag);
+            }
         }
 
-        return null;
+        log.info("上传知识库完成:{}", ragTag);
+        return Response.<String>builder().code("0000").info("调用成功").build();
     }
 }
