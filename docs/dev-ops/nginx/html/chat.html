@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 对话界面</title>
+
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        /* 隐藏滚动条但保留滚动功能，让界面更清爽 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* 简单的打字机光标动画 */
+        .typing-cursor::after {
+            content: '▌';
+            animation: blink 1s step-end infinite;
+            color: #3b82f6; /* 光标颜色 */
+            margin-left: 2px;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* 针对 marked.js 生成的内部元素微调光标显示位置 */
+        .typing-cursor p:last-child {
+            display: inline;
+        }
+    </style>
+</head>
+<body class="bg-[#f3f4f6] text-gray-800 h-screen flex overflow-hidden font-sans">
+
+<aside class="w-64 bg-[#f0f4f9] h-full flex flex-col transition-all duration-300 hidden md:flex">
+    <div class="p-4 flex items-center justify-between">
+        <button class="p-2 hover:bg-gray-200 rounded-full">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+        <button class="p-2 hover:bg-gray-200 rounded-full">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </button>
+    </div>
+    <div class="px-3 py-2">
+        <button class="flex items-center space-x-3 w-full p-3 bg-white rounded-full shadow-sm text-sm font-medium hover:bg-gray-50 transition-colors" onclick="location.reload()">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>发起新对话</span>
+        </button>
+    </div>
+    <div class="flex-1 overflow-y-auto mt-4 px-3 space-y-1">
+        <p class="text-xs text-gray-500 font-semibold px-3 py-2">最近的对话</p>
+        <a href="#" class="block px-3 py-2 rounded-lg text-sm hover:bg-gray-200 truncate">Docker 网络与镜像容器清理</a>
+        <a href="#" class="block px-3 py-2 rounded-lg text-sm hover:bg-gray-200 truncate">安全计算的电路与协议</a>
+    </div>
+</aside>
+
+<main class="flex-1 flex flex-col h-full bg-white relative">
+    <header class="h-16 flex items-center justify-between px-4 lg:px-8 shrink-0">
+        <h1 class="text-xl font-medium text-gray-700">Gemini</h1>
+        <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+            U
+        </div>
+    </header>
+
+    <div id="chat-container" class="flex-1 overflow-y-auto no-scrollbar pb-36 pt-8 px-4 lg:px-32 max-w-5xl mx-auto w-full">
+
+        <div id="welcome-screen" class="flex flex-col items-center justify-center h-full mt-[-10vh]">
+            <h2 class="text-4xl font-semibold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">daokun，你好</h2>
+            <h2 class="text-4xl font-semibold text-gray-300 mb-8">需要我为你做些什么？</h2>
+            <div class="flex flex-wrap justify-center gap-3">
+                <button class="px-4 py-2 bg-gray-50 border border-gray-100 rounded-2xl text-sm hover:bg-gray-100 transition shadow-sm">🖼️ 制作图片</button>
+                <button class="px-4 py-2 bg-gray-50 border border-gray-100 rounded-2xl text-sm hover:bg-gray-100 transition shadow-sm">🎸 创作音乐</button>
+                <button class="px-4 py-2 bg-gray-50 border border-gray-100 rounded-2xl text-sm hover:bg-gray-100 transition shadow-sm">随便写点什么</button>
+            </div>
+        </div>
+
+        <div id="messages-wrapper" class="hidden flex-col space-y-8"></div>
+    </div>
+
+    <div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent pt-10 pb-6 px-4 lg:px-32 flex justify-center">
+        <div class="w-full max-w-3xl relative">
+            <div class="bg-[#f0f4f9] rounded-3xl p-2 flex items-end relative transition-shadow focus-within:shadow-md">
+                <button class="p-3 text-gray-400 hover:text-gray-600 rounded-full shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                </button>
+                <textarea
+                        id="message-input"
+                        rows="1"
+                        class="w-full max-h-32 p-3 bg-transparent border-none focus:ring-0 resize-none overflow-y-auto no-scrollbar outline-none placeholder-gray-500 text-gray-800"
+                        placeholder="问问 Gemini..."
+                        oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+
+                <button id="send-button" class="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full shrink-0 transition-colors hidden cursor-pointer">
+                    <svg class="w-6 h-6 transform rotate-90" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+                </button>
+            </div>
+            <div class="text-center mt-3 text-xs text-gray-400">
+                Gemini 可能会提供不准确的信息，请仔细核查。
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    const inputEl = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-button');
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const messagesWrapper = document.getElementById('messages-wrapper');
+    const chatContainer = document.getElementById('chat-container');
+
+    // 后端接口地址
+    const BASE_API_URL = 'http://127.0.0.1:8090/api/v1/ollama/generate_stream';
+    // 模型配置
+    const DEFAULT_MODEL = 'deepseek-r1:1.5b';
+
+    let currentEventSource = null;
+
+    // 设置 marked.js 选项，防止输出的内容存在安全风险，同时允许回车换行
+    marked.setOptions({
+        breaks: true,
+        gfm: true
+    });
+
+    // 控制发送按钮显示隐藏
+    inputEl.addEventListener('input', () => {
+        if (inputEl.value.trim().length > 0) {
+            sendBtn.classList.remove('hidden');
+            sendBtn.classList.add('text-blue-500');
+        } else {
+            sendBtn.classList.add('hidden');
+            sendBtn.classList.remove('text-blue-500');
+        }
+    });
+
+    // 监听回车键
+    inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    sendBtn.addEventListener('click', sendMessage);
+
+    function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function appendUserMessage(text) {
+        const userHtml = `
+                <div class="flex justify-end w-full">
+                    <div class="bg-[#f0f4f9] text-gray-800 px-5 py-3 rounded-2xl max-w-[80%] whitespace-pre-wrap leading-relaxed">${text}</div>
+                </div>
+            `;
+        messagesWrapper.insertAdjacentHTML('beforeend', userHtml);
+        scrollToBottom();
+    }
+
+    function appendBotMessageContainer() {
+        const id = 'bot-msg-' + Date.now();
+        const botHtml = `
+                <div class="flex justify-start w-full">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 shrink-0 mr-4 flex items-center justify-center shadow-sm">
+                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M19.7 10.9l-4.4-1.4-1.4-4.4c-.2-.6-1-.6-1.2 0L11.3 9.5 6.9 10.9c-.6.2-.6 1 0 1.2l4.4 1.4 1.4 4.4c.2.6 1 .6 1.2 0l1.4-4.4 4.4-1.4c.6-.2.6-1 0-1.2zM21 21l-3-1-1-3c-.1-.3-.5-.3-.6 0l-1 3-3 1c-.3.1-.3.5 0 .6l3 1 1 3c.1.3.5.3.6 0l1-3 3-1c.3-.1.3-.5 0-.6z"/></svg>
+                    </div>
+                    <div class="text-gray-800 max-w-[90%] pt-1 leading-relaxed typing-cursor prose prose-slate prose-p:my-1 prose-headings:mb-2 prose-headings:mt-4 max-w-none" id="${id}"></div>
+                </div>
+            `;
+        messagesWrapper.insertAdjacentHTML('beforeend', botHtml);
+        scrollToBottom();
+        return document.getElementById(id);
+    }
+
+    function sendMessage() {
+        const message = inputEl.value.trim();
+        if (!message) return;
+
+        if (!welcomeScreen.classList.contains('hidden')) {
+            welcomeScreen.classList.add('hidden');
+            messagesWrapper.classList.remove('hidden');
+            messagesWrapper.classList.add('flex');
+        }
+
+        if (currentEventSource) {
+            currentEventSource.close();
+        }
+
+        appendUserMessage(message);
+        inputEl.value = '';
+        inputEl.style.height = 'auto';
+        sendBtn.classList.add('hidden');
+
+        const currentBotMsgEl = appendBotMessageContainer();
+        let accumulatedText = "";
+
+        const apiUrl = `${BASE_API_URL}?model=${encodeURIComponent(DEFAULT_MODEL)}&message=${encodeURIComponent(message)}`;
+
+        try {
+            currentEventSource = new EventSource(apiUrl);
+
+            currentEventSource.onmessage = function(event) {
+                try {
+                    const parsedData = JSON.parse(event.data);
+
+                    // 提取文本内容
+                    if (parsedData?.result?.output?.text !== undefined) {
+                        const textChunk = parsedData.result.output.text;
+                        accumulatedText += textChunk;
+
+                        // 使用 marked.js 将 Markdown 转换为 HTML
+                        currentBotMsgEl.innerHTML = marked.parse(accumulatedText);
+                        scrollToBottom();
+                    }
+
+                    // 判断结束标识
+                    const finishReason = parsedData?.result?.metadata?.finishReason;
+                    if (finishReason && finishReason.toLowerCase() === 'stop') {
+                        currentBotMsgEl.classList.remove('typing-cursor');
+                        currentEventSource.close();
+                        currentEventSource = null;
+                    }
+
+                } catch (e) {
+                    console.error('解析JSON失败:', e, '原始数据:', event.data);
+                }
+            };
+
+            currentEventSource.onerror = function(err) {
+                console.error('EventSource 错误或结束:', err);
+                currentBotMsgEl.classList.remove('typing-cursor');
+                currentEventSource.close();
+                currentEventSource = null;
+            };
+
+        } catch (err) {
+            console.error("创建 EventSource 失败:", err);
+            currentBotMsgEl.classList.remove('typing-cursor');
+            currentBotMsgEl.innerHTML = '<span class="text-red-500">无法连接到服务器。</span>';
+        }
+    }
+</script>
+</body>
+</html>
