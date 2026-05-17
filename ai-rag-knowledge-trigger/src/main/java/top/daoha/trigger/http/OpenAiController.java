@@ -6,8 +6,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.ai.ollama.api.OllamaOptions;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.http.MediaType;
@@ -21,17 +21,17 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestController
 @CrossOrigin("*")
-@RequestMapping("/api/v1/ollama")
-public class OllamaController implements IAiService {
+@RequestMapping("/api/v1/openai")
+public class OpenAiController implements IAiService {
 
     private final ChatClient chatClient;
 
     @Resource
     private PgVectorStore pgVectorStore;
 
-    // 构造函数注入 OllamaChatModel
-    public OllamaController(OllamaChatModel ollamaChatModel, ChatMemory chatMemory) {
-        this.chatClient = ChatClient.builder(ollamaChatModel)
+    // 构造函数注入，利用 ChatClient.builder 绑定记忆顾问
+    public OpenAiController(OpenAiChatModel openAiChatModel, ChatMemory chatMemory) {
+        this.chatClient = ChatClient.builder(openAiChatModel)
                 .defaultAdvisors(new MessageChatMemoryAdvisor(chatMemory))
                 .build();
     }
@@ -41,7 +41,7 @@ public class OllamaController implements IAiService {
     public ChatResponse generate(@RequestParam String model, @RequestParam String message) {
         return this.chatClient.prompt()
                 .user(message)
-                .options(OllamaOptions.builder().model(model).build())
+                .options(OpenAiChatOptions.builder().model(model).build())
                 .call()
                 .chatResponse();
     }
@@ -51,7 +51,8 @@ public class OllamaController implements IAiService {
     public Flux<ChatResponse> generateStream(@RequestParam String chatId, @RequestParam String model, @RequestParam String message) {
         return this.chatClient.prompt()
                 .user(message)
-                .options(OllamaOptions.builder().model(model).build())
+                .options(OpenAiChatOptions.builder().model(model).build())
+                // 核心：绑定当前的会话 ID，Spring AI 会自动存取历史消息
                 .advisors(a -> a.param(MessageChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY, chatId))
                 .stream()
                 .chatResponse();
@@ -72,6 +73,7 @@ public class OllamaController implements IAiService {
             {documents}
             """;
 
+        // 向量检索
         SearchRequest request = SearchRequest.builder()
                 .query(message)
                 .topK(5)
@@ -83,9 +85,11 @@ public class OllamaController implements IAiService {
                 .collect(Collectors.joining("\n\n"));
 
         return this.chatClient.prompt()
+                // 使用 ChatClient 的 system 链式方法注入 RAG 提示词
                 .system(sp -> sp.text(SYSTEM_PROMPT).param("documents", documentCollectors))
                 .user(message)
-                .options(OllamaOptions.builder().model(model).build())
+                .options(OpenAiChatOptions.builder().model(model).build())
+                // 同时享有上下文记忆能力
                 .advisors(a -> a.param(MessageChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY, chatId))
                 .stream()
                 .chatResponse();

@@ -3,130 +3,466 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 对话界面</title>
-
+    <title>AI 对话与知识库管理</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
-        /* 隐藏滚动条但保留滚动功能，让界面更清爽 */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        /* 简单的打字机光标动画 */
+        /* 隐藏滚动条 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 打字机光标 */
         .typing-cursor::after {
             content: '▌';
             animation: blink 1s step-end infinite;
-            color: #3b82f6; /* 光标颜色 */
+            color: #3b82f6;
             margin-left: 2px;
         }
-        @keyframes blink {
-            50% { opacity: 0; }
-        }
+        @keyframes blink { 50% { opacity: 0; } }
+        .typing-cursor p:last-child { display: inline; }
 
-        /* 针对 marked.js 生成的内部元素微调光标显示位置 */
-        .typing-cursor p:last-child {
-            display: inline;
-        }
+        /* 防止模态框背景穿透 */
+        body.modal-open { overflow: hidden; }
+
+        /* 隐藏默认 select 下拉箭头以使用自定义 SVG */
+        select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
     </style>
 </head>
 <body class="bg-[#f3f4f6] text-gray-800 h-screen flex overflow-hidden font-sans">
 
-<aside class="w-64 bg-[#f0f4f9] h-full flex flex-col transition-all duration-300 hidden md:flex">
+<aside class="w-64 bg-[#f0f4f9] h-full flex flex-col transition-all duration-300 hidden md:flex border-r border-gray-200 z-10">
     <div class="p-4 flex items-center justify-between">
-        <button class="p-2 hover:bg-gray-200 rounded-full">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-        </button>
-        <button class="p-2 hover:bg-gray-200 rounded-full">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-        </button>
+        <span class="font-bold text-lg text-gray-700 tracking-wide">RAG Chat</span>
     </div>
+
     <div class="px-3 py-2">
-        <button class="flex items-center space-x-3 w-full p-3 bg-white rounded-full shadow-sm text-sm font-medium hover:bg-gray-50 transition-colors" onclick="location.reload()">
-            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            <span>发起新对话</span>
+        <button onclick="createNewChat()" class="flex items-center justify-center space-x-2 w-full p-2.5 bg-white border border-gray-200 rounded-xl shadow-sm text-sm font-medium hover:bg-gray-50 hover:text-blue-600 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>新建对话</span>
         </button>
     </div>
-    <div class="flex-1 overflow-y-auto mt-4 px-3 space-y-1">
-        <p class="text-xs text-gray-500 font-semibold px-3 py-2">最近的对话</p>
-        <a href="#" class="block px-3 py-2 rounded-lg text-sm hover:bg-gray-200 truncate">Docker 网络与镜像容器清理</a>
-        <a href="#" class="block px-3 py-2 rounded-lg text-sm hover:bg-gray-200 truncate">安全计算的电路与协议</a>
+
+    <div class="flex-1 overflow-y-auto mt-2 px-3 space-y-1" id="chat-list-container">
+    </div>
+
+    <div class="p-3 border-t border-gray-200 space-y-2 bg-[#f0f4f9]">
+        <p class="text-xs text-gray-500 font-semibold px-1 mb-2">知识库管理</p>
+        <button onclick="openModal('upload-modal')" class="flex items-center space-x-2 w-full p-2 rounded-lg text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+            <span>上传文件知识库</span>
+        </button>
+        <!-- 新增：上传 Git 知识库按钮 -->
+        <button onclick="openModal('git-upload-modal')" class="flex items-center space-x-2 w-full p-2 rounded-lg text-sm bg-green-50 text-green-600 hover:bg-green-100 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+            <span>上传Git知识库</span>
+        </button>
+        <button onclick="openTagsModal()" class="flex items-center space-x-2 w-full p-2 rounded-lg text-sm bg-purple-50 text-purple-600 hover:bg-purple-100 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            <span>查看知识库列表</span>
+        </button>
     </div>
 </aside>
 
 <main class="flex-1 flex flex-col h-full bg-white relative">
-    <header class="h-16 flex items-center justify-between px-4 lg:px-8 shrink-0">
-        <h1 class="text-xl font-medium text-gray-700">Gemini</h1>
-        <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-            U
-        </div>
+    <header class="h-16 flex items-center justify-between px-4 lg:px-8 shrink-0 bg-white border-b border-gray-100">
+        <h1 class="text-lg font-medium text-gray-700" id="current-chat-title">Gemini</h1>
+        <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shadow-sm">U</div>
     </header>
 
-    <div id="chat-container" class="flex-1 overflow-y-auto no-scrollbar pb-36 pt-8 px-4 lg:px-32 max-w-5xl mx-auto w-full">
-
-        <div id="welcome-screen" class="flex flex-col items-center justify-center h-full mt-[-10vh]">
-            <h2 class="text-4xl font-semibold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">daokun，你好</h2>
-            <h2 class="text-4xl font-semibold text-gray-300 mb-8">需要我为你做些什么？</h2>
-            <div class="flex flex-wrap justify-center gap-3">
-                <button class="px-4 py-2 bg-gray-50 border border-gray-100 rounded-2xl text-sm hover:bg-gray-100 transition shadow-sm">🖼️ 制作图片</button>
-                <button class="px-4 py-2 bg-gray-50 border border-gray-100 rounded-2xl text-sm hover:bg-gray-100 transition shadow-sm">🎸 创作音乐</button>
-                <button class="px-4 py-2 bg-gray-50 border border-gray-100 rounded-2xl text-sm hover:bg-gray-100 transition shadow-sm">随便写点什么</button>
-            </div>
+    <div id="chat-container" class="flex-1 overflow-y-auto no-scrollbar pb-40 pt-8 px-4 lg:px-32 max-w-5xl mx-auto w-full">
+        <div id="welcome-screen" class="flex flex-col items-center justify-center h-full mt-[-5vh]">
+            <h2 class="text-4xl font-semibold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500">你好，我是你的AI助手</h2>
+            <h2 class="text-2xl font-medium text-gray-400 mb-8 mt-2">有什么我可以帮您的吗？</h2>
         </div>
-
         <div id="messages-wrapper" class="hidden flex-col space-y-8"></div>
     </div>
 
-    <div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent pt-10 pb-6 px-4 lg:px-32 flex justify-center">
+    <div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent pt-12 pb-6 px-4 lg:px-32 flex justify-center">
         <div class="w-full max-w-3xl relative">
-            <div class="bg-[#f0f4f9] rounded-3xl p-2 flex items-end relative transition-shadow focus-within:shadow-md">
-                <button class="p-3 text-gray-400 hover:text-gray-600 rounded-full shrink-0">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                </button>
-                <textarea
-                        id="message-input"
-                        rows="1"
-                        class="w-full max-h-32 p-3 bg-transparent border-none focus:ring-0 resize-none overflow-y-auto no-scrollbar outline-none placeholder-gray-500 text-gray-800"
-                        placeholder="问问 Gemini..."
-                        oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
 
-                <button id="send-button" class="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full shrink-0 transition-colors hidden cursor-pointer">
+            <!-- 下拉框区域包含：模型选择 + 知识库选择 -->
+            <div class="flex items-center mb-2 px-1 space-x-3 overflow-x-auto no-scrollbar pb-1">
+                <!-- 新增：模型选择 -->
+                <div class="relative flex items-center bg-white border border-gray-200 rounded-xl pl-3 pr-8 py-1.5 shadow-sm text-sm hover:border-blue-300 transition-colors shrink-0">
+                    <svg class="w-4 h-4 text-purple-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    <select id="model-select" class="bg-transparent border-none outline-none text-gray-700 cursor-pointer focus:ring-0 w-32 truncate">
+                        <option value="deepseek-r1:1.5b">DeepSeek R1</option>
+                        <option value="gpt-4o">GPT-4o</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-gray-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </div>
+
+                <!-- 知识库选择 -->
+                <div class="relative flex items-center bg-white border border-gray-200 rounded-xl pl-3 pr-8 py-1.5 shadow-sm text-sm hover:border-blue-300 transition-colors shrink-0">
+                    <svg class="w-4 h-4 text-blue-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    <select id="rag-select" class="bg-transparent border-none outline-none text-gray-700 cursor-pointer focus:ring-0 w-44 truncate">
+                        <option value="">普通对话 (不使用知识库)</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-gray-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </div>
+
+                <button onclick="loadRagTagsForSelect()" title="刷新知识库列表" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                </button>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-1.5 flex items-end relative transition-shadow focus-within:shadow-md focus-within:border-blue-300">
+                <textarea id="message-input" rows="1" class="w-full max-h-32 p-3 bg-transparent border-none focus:ring-0 resize-none overflow-y-auto no-scrollbar outline-none placeholder-gray-400 text-gray-800" placeholder="问问我..." oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+                <button id="send-button" class="p-3 text-gray-400 hover:text-blue-500 rounded-xl shrink-0 transition-colors hidden cursor-pointer mb-0.5 mr-0.5">
                     <svg class="w-6 h-6 transform rotate-90" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
                 </button>
             </div>
-            <div class="text-center mt-3 text-xs text-gray-400">
-                Gemini 可能会提供不准确的信息，请仔细核查。
-            </div>
+            <div class="text-center mt-2 text-xs text-gray-400">AI 可能会提供不准确的信息，请仔细核实。</div>
         </div>
     </div>
 </main>
 
+<!-- 文件上传 Modal -->
+<div id="upload-modal" class="fixed inset-0 bg-black bg-opacity-40 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform transition-transform">
+        <div class="flex justify-between items-center mb-5">
+            <h3 class="text-lg font-semibold text-gray-800">上传新知识库</h3>
+            <button onclick="closeModal('upload-modal')" class="text-gray-400 hover:text-gray-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+        </div>
+        <form id="upload-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">知识库标签 (ragTag)</label>
+                <input type="text" id="rag-tag-input" required placeholder="如: java-docs" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">选择文件 (支持多个)</label>
+                <div class="flex items-center justify-center w-full">
+                    <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-8 h-8 mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                            <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">点击上传</span> 或拖拽文件</p>
+                        </div>
+                        <input id="file-upload-input" type="file" multiple class="hidden" />
+                    </label>
+                </div>
+                <div id="selected-files" class="text-xs text-gray-500 mt-2 truncate"></div>
+            </div>
+            <button type="submit" id="upload-btn" class="w-full bg-blue-600 text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 transition shadow-sm mt-2">
+                确认上传
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- 新增：Git 上传 Modal -->
+<div id="git-upload-modal" class="fixed inset-0 bg-black bg-opacity-40 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform transition-transform">
+        <div class="flex justify-between items-center mb-5">
+            <h3 class="text-lg font-semibold text-gray-800">解析 Git 知识库</h3>
+            <button onclick="closeModal('git-upload-modal')" class="text-gray-400 hover:text-gray-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+        </div>
+        <form id="git-upload-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Git 仓库地址 (URL)</label>
+                <input type="text" id="git-url-input" required placeholder="例如: https://github.com/xxx/xxx.git" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">用户名 (UserName)</label>
+                <input type="text" id="git-username-input" required placeholder="输入 Git 用户名" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">访问令牌 (Token)</label>
+                <input type="password" id="git-token-input" required placeholder="输入 Personal Access Token" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
+            </div>
+            <button type="submit" id="git-upload-btn" class="w-full bg-green-600 text-white font-medium py-2.5 rounded-lg hover:bg-green-700 transition shadow-sm mt-2">
+                开始拉取并解析
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- 标签查看 Modal -->
+<div id="tags-modal" class="fixed inset-0 bg-black bg-opacity-40 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col max-h-[80vh]">
+        <div class="flex justify-between items-center mb-4 shrink-0">
+            <h3 class="text-lg font-semibold text-gray-800">已有的知识库 (Tags)</h3>
+            <button onclick="closeModal('tags-modal')" class="text-gray-400 hover:text-gray-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto pr-2 no-scrollbar">
+            <div id="tags-loading" class="text-center text-gray-400 py-4">加载中...</div>
+            <div id="tags-empty" class="text-center text-gray-400 py-4 hidden">暂无知识库数据</div>
+            <div id="tags-list" class="flex flex-wrap gap-2"></div>
+        </div>
+    </div>
+</div>
+
 <script>
+    // === 配置与常量 ===
+    const API_BASE = 'http://127.0.0.1:8090/api/v1';
+
+    // RAG 和知识库的接口
+    const RAG_UPLOAD_URL = `${API_BASE}/rag/file/upload`;
+    const RAG_GIT_URL = `${API_BASE}/rag/analyze_git_repository`; // 新增 Git 解析地址
+    const RAG_TAGS_URL = `${API_BASE}/rag/query_rag_tag_list`;
+
+    marked.setOptions({ breaks: true, gfm: true });
+
+    // === 状态管理 ===
+    let chats = [{ id: Date.now().toString(), title: '新的对话', messages: [] }];
+    let activeChatId = chats[0].id;
+    let currentEventSource = null;
+    let isGenerating = false;
+
+    // === DOM 元素提取 ===
+    const chatListContainer = document.getElementById('chat-list-container');
+    const messagesWrapper = document.getElementById('messages-wrapper');
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const chatTitle = document.getElementById('current-chat-title');
     const inputEl = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-button');
-    const welcomeScreen = document.getElementById('welcome-screen');
-    const messagesWrapper = document.getElementById('messages-wrapper');
     const chatContainer = document.getElementById('chat-container');
+    const ragSelectEl = document.getElementById('rag-select');
+    const modelSelectEl = document.getElementById('model-select'); // 新增模型选择器
 
-    // 后端接口地址
-    const BASE_API_URL = 'http://127.0.0.1:8090/api/v1/ollama/generate_stream';
-    // 模型配置
-    const DEFAULT_MODEL = 'deepseek-r1:1.5b';
+    // === 初始化 ===
+    function init() {
+        renderChatList();
+        renderMessages();
+        loadRagTagsForSelect();
+    }
 
-    let currentEventSource = null;
+    // 加载知识库列表到下拉框
+    async function loadRagTagsForSelect() {
+        ragSelectEl.innerHTML = '<option value="">普通对话 (不使用知识库)</option>';
+        try {
+            const res = await fetch(RAG_TAGS_URL);
+            const resData = await res.json();
+            if (resData.code === '0000' && resData.data && resData.data.length > 0) {
+                resData.data.forEach(tag => {
+                    const opt = document.createElement('option');
+                    opt.value = tag;
+                    opt.innerText = tag;
+                    ragSelectEl.appendChild(opt);
+                });
+            }
+        } catch (error) {
+            console.error('加载下拉知识库失败:', error);
+        }
+    }
 
-    // 设置 marked.js 选项，防止输出的内容存在安全风险，同时允许回车换行
-    marked.setOptions({
-        breaks: true,
-        gfm: true
-    });
+    // === 侧边栏对话管理 ===
+    function createNewChat() {
+        if (isGenerating) abortGeneration();
+        const newChat = { id: Date.now().toString(), title: '新的对话', messages: [] };
+        chats.unshift(newChat);
+        activeChatId = newChat.id;
+        renderChatList();
+        renderMessages();
+    }
 
-    // 控制发送按钮显示隐藏
+    function selectChat(id) {
+        if (activeChatId === id) return;
+        if (isGenerating) abortGeneration();
+        activeChatId = id;
+        renderChatList();
+        renderMessages();
+    }
+
+    function deleteChat(e, id) {
+        e.stopPropagation();
+        if (confirm('确定要删除这个对话吗？')) {
+            chats = chats.filter(c => c.id !== id);
+            if (chats.length === 0) {
+                createNewChat();
+            } else if (activeChatId === id) {
+                activeChatId = chats[0].id;
+            }
+            renderChatList();
+            renderMessages();
+        }
+    }
+
+    function renameChat(e, id) {
+        e.stopPropagation();
+        const chat = chats.find(c => c.id === id);
+        const newTitle = prompt('请输入新的对话名称:', chat.title);
+        if (newTitle && newTitle.trim() !== '') {
+            chat.title = newTitle.trim();
+            renderChatList();
+            if (activeChatId === id) chatTitle.innerText = chat.title;
+        }
+    }
+
+    function renderChatList() {
+        chatListContainer.innerHTML = '';
+        chats.forEach(chat => {
+            const isActive = chat.id === activeChatId;
+            const bgClass = isActive ? 'bg-white shadow-sm border border-gray-200' : 'hover:bg-gray-200/50 border border-transparent';
+
+            const html = `
+                <div onclick="selectChat('${chat.id}')" class="group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${bgClass} mb-1">
+                    <div class="truncate text-sm ${isActive ? 'font-medium text-blue-600' : 'text-gray-600'} select-none">
+                        ${chat.title}
+                    </div>
+                    <div class="hidden group-hover:flex items-center space-x-1 shrink-0">
+                        <button onclick="renameChat(event, '${chat.id}')" class="p-1 text-gray-400 hover:text-blue-500 rounded"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
+                        <button onclick="deleteChat(event, '${chat.id}')" class="p-1 text-gray-400 hover:text-red-500 rounded"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                    </div>
+                </div>
+            `;
+            chatListContainer.insertAdjacentHTML('beforeend', html);
+        });
+
+        const activeChat = chats.find(c => c.id === activeChatId);
+        chatTitle.innerText = activeChat ? activeChat.title : '对话';
+    }
+
+    // === 消息渲染逻辑 ===
+    function renderMessages() {
+        const activeChat = chats.find(c => c.id === activeChatId);
+        messagesWrapper.innerHTML = '';
+
+        if (activeChat.messages.length === 0) {
+            welcomeScreen.classList.remove('hidden');
+            messagesWrapper.classList.add('hidden');
+            messagesWrapper.classList.remove('flex');
+        } else {
+            welcomeScreen.classList.add('hidden');
+            messagesWrapper.classList.remove('hidden');
+            messagesWrapper.classList.add('flex');
+
+            activeChat.messages.forEach(msg => {
+                if (msg.role === 'user') appendUserHtml(msg.content);
+                else appendBotHtml(msg.content, false);
+            });
+            scrollToBottom();
+        }
+    }
+
+    function appendUserHtml(text) {
+        const html = `
+            <div class="flex justify-end w-full">
+                <div class="bg-gray-100 text-gray-800 px-5 py-3 rounded-2xl rounded-tr-sm max-w-[80%] whitespace-pre-wrap leading-relaxed">${text}</div>
+            </div>`;
+        messagesWrapper.insertAdjacentHTML('beforeend', html);
+    }
+
+    function appendBotHtml(htmlContent, isTyping = false) {
+        const id = 'bot-msg-' + Date.now();
+        const cursorClass = isTyping ? 'typing-cursor' : '';
+        const html = `
+            <div class="flex justify-start w-full" id="container-${id}">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 shrink-0 mr-4 flex items-center justify-center shadow-sm">
+                    <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M19.7 10.9l-4.4-1.4-1.4-4.4c-.2-.6-1-.6-1.2 0L11.3 9.5 6.9 10.9c-.6.2-.6 1 0 1.2l4.4 1.4 1.4 4.4c.2.6 1 .6 1.2 0l1.4-4.4 4.4-1.4c.6-.2.6-1 0-1.2zM21 21l-3-1-1-3c-.1-.3-.5-.3-.6 0l-1 3-3 1c-.3.1-.3.5 0 .6l3 1 1 3c.1.3.5.3.6 0l1-3 3-1c.3-.1.3-.5 0-.6z"/></svg>
+                </div>
+                <div class="text-gray-800 pt-1 leading-relaxed ${cursorClass} prose prose-slate prose-p:my-1 prose-headings:mb-2 prose-headings:mt-4 max-w-none" id="${id}">
+                    ${htmlContent}
+                </div>
+            </div>`;
+        messagesWrapper.insertAdjacentHTML('beforeend', html);
+        return { el: document.getElementById(id), id: id };
+    }
+
+    function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function abortGeneration() {
+        if (currentEventSource) {
+            currentEventSource.close();
+            currentEventSource = null;
+        }
+        isGenerating = false;
+        document.querySelectorAll('.typing-cursor').forEach(el => el.classList.remove('typing-cursor'));
+    }
+
+    // === 发送与请求逻辑 ===
+    function sendMessage() {
+        if (isGenerating) return;
+        const message = inputEl.value.trim();
+        if (!message) return;
+
+        const activeChat = chats.find(c => c.id === activeChatId);
+
+        if (welcomeScreen.classList.contains('hidden') === false) {
+            welcomeScreen.classList.add('hidden');
+            messagesWrapper.classList.remove('hidden');
+            messagesWrapper.classList.add('flex');
+        }
+
+        activeChat.messages.push({ role: 'user', content: message });
+        appendUserHtml(message);
+
+        inputEl.value = '';
+        inputEl.style.height = 'auto';
+        sendBtn.classList.add('hidden');
+        scrollToBottom();
+
+        if (activeChat.title === '新的对话') {
+            activeChat.title = message.length > 10 ? message.substring(0, 10) + '...' : message;
+            renderChatList();
+        }
+
+        isGenerating = true;
+        const botNodeInfo = appendBotHtml('', true);
+        let accumulatedText = "";
+
+        // 根据选择的模型决定请求的 controller 路径
+        const selectedModel = modelSelectEl.value;
+        const selectedRagTag = ragSelectEl.value;
+        const controllerPath = selectedModel === 'gpt-4o' ? '/openai' : '/ollama';
+
+        let apiUrl = '';
+        if (selectedRagTag && selectedRagTag.trim() !== '') {
+            // RAG 接口
+            apiUrl = `${API_BASE}${controllerPath}/generate_stream_rag?chatId=${activeChatId}&model=${encodeURIComponent(selectedModel)}&ragTag=${encodeURIComponent(selectedRagTag)}&message=${encodeURIComponent(message)}`;
+        } else {
+            // 普通对话接口
+            apiUrl = `${API_BASE}${controllerPath}/generate_stream?chatId=${activeChatId}&model=${encodeURIComponent(selectedModel)}&message=${encodeURIComponent(message)}`;
+        }
+
+        try {
+            currentEventSource = new EventSource(apiUrl);
+
+            currentEventSource.onmessage = function(event) {
+                try {
+                    const parsedData = JSON.parse(event.data);
+                    if (parsedData?.result?.output?.text) {
+                        accumulatedText += parsedData.result.output.text;
+                        botNodeInfo.el.innerHTML = marked.parse(accumulatedText);
+                        scrollToBottom();
+                    }
+                    if (parsedData?.result?.metadata?.finishReason?.toLowerCase() === 'stop') {
+                        finishGeneration(botNodeInfo.el, activeChat, accumulatedText);
+                    }
+                } catch (e) {}
+            };
+
+            currentEventSource.onerror = function() {
+                if(accumulatedText === "") {
+                    botNodeInfo.el.innerHTML = '<span class="text-red-500 text-sm">请求失败，请检查后端服务。</span>';
+                }
+                finishGeneration(botNodeInfo.el, activeChat, accumulatedText === "" ? "请求失败" : accumulatedText);
+            };
+
+        } catch (err) {
+            botNodeInfo.el.innerHTML = '<span class="text-red-500">无法连接服务器。</span>';
+            finishGeneration(botNodeInfo.el, activeChat, "连接失败");
+        }
+    }
+
+    function finishGeneration(el, activeChat, finalHtml) {
+        el.classList.remove('typing-cursor');
+        if (currentEventSource) {
+            currentEventSource.close();
+            currentEventSource = null;
+        }
+        isGenerating = false;
+        activeChat.messages.push({ role: 'bot', content: marked.parse(finalHtml) });
+    }
+
+    // === 事件监听 ===
     inputEl.addEventListener('input', () => {
         if (inputEl.value.trim().length > 0) {
             sendBtn.classList.remove('hidden');
@@ -137,7 +473,6 @@
         }
     });
 
-    // 监听回车键
     inputEl.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -147,102 +482,165 @@
 
     sendBtn.addEventListener('click', sendMessage);
 
-    function scrollToBottom() {
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+    // === 弹窗管理 ===
+    function openModal(id) {
+        document.getElementById(id).classList.remove('hidden');
+        document.body.classList.add('modal-open');
+    }
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+        document.body.classList.remove('modal-open');
     }
 
-    function appendUserMessage(text) {
-        const userHtml = `
-                <div class="flex justify-end w-full">
-                    <div class="bg-[#f0f4f9] text-gray-800 px-5 py-3 rounded-2xl max-w-[80%] whitespace-pre-wrap leading-relaxed">${text}</div>
-                </div>
-            `;
-        messagesWrapper.insertAdjacentHTML('beforeend', userHtml);
-        scrollToBottom();
-    }
+    // === 文件知识库提交逻辑 ===
+    document.getElementById('file-upload-input').addEventListener('change', function(e) {
+        const textContainer = document.getElementById('selected-files');
+        if(this.files.length > 0) {
+            const fileNames = Array.from(this.files).map(f => f.name).join(', ');
+            textContainer.innerText = `已选文件: ${fileNames}`;
+            textContainer.classList.add('text-blue-500');
+        } else {
+            textContainer.innerText = '';
+        }
+    });
 
-    function appendBotMessageContainer() {
-        const id = 'bot-msg-' + Date.now();
-        const botHtml = `
-                <div class="flex justify-start w-full">
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-400 to-purple-500 shrink-0 mr-4 flex items-center justify-center shadow-sm">
-                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M19.7 10.9l-4.4-1.4-1.4-4.4c-.2-.6-1-.6-1.2 0L11.3 9.5 6.9 10.9c-.6.2-.6 1 0 1.2l4.4 1.4 1.4 4.4c.2.6 1 .6 1.2 0l1.4-4.4 4.4-1.4c.6-.2.6-1 0-1.2zM21 21l-3-1-1-3c-.1-.3-.5-.3-.6 0l-1 3-3 1c-.3.1-.3.5 0 .6l3 1 1 3c.1.3.5.3.6 0l1-3 3-1c.3-.1.3-.5 0-.6z"/></svg>
-                    </div>
-                    <div class="text-gray-800 max-w-[90%] pt-1 leading-relaxed typing-cursor prose prose-slate prose-p:my-1 prose-headings:mb-2 prose-headings:mt-4 max-w-none" id="${id}"></div>
-                </div>
-            `;
-        messagesWrapper.insertAdjacentHTML('beforeend', botHtml);
-        scrollToBottom();
-        return document.getElementById(id);
-    }
+    document.getElementById('upload-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const tagInput = document.getElementById('rag-tag-input').value.trim();
+        const fileInput = document.getElementById('file-upload-input');
 
-    function sendMessage() {
-        const message = inputEl.value.trim();
-        if (!message) return;
-
-        if (!welcomeScreen.classList.contains('hidden')) {
-            welcomeScreen.classList.add('hidden');
-            messagesWrapper.classList.remove('hidden');
-            messagesWrapper.classList.add('flex');
+        if (!tagInput || fileInput.files.length === 0) {
+            alert('请填写标签并选择至少一个文件！'); return;
         }
 
-        if (currentEventSource) {
-            currentEventSource.close();
+        const submitBtn = document.getElementById('upload-btn');
+        submitBtn.disabled = true;
+        submitBtn.innerText = '上传处理中...';
+        submitBtn.classList.replace('bg-blue-600', 'bg-blue-400');
+
+        const formData = new FormData();
+        formData.append('ragTag', tagInput);
+        for (let i = 0; i < fileInput.files.length; i++) {
+            formData.append('file', fileInput.files[i]);
         }
-
-        appendUserMessage(message);
-        inputEl.value = '';
-        inputEl.style.height = 'auto';
-        sendBtn.classList.add('hidden');
-
-        const currentBotMsgEl = appendBotMessageContainer();
-        let accumulatedText = "";
-
-        const apiUrl = `${BASE_API_URL}?model=${encodeURIComponent(DEFAULT_MODEL)}&message=${encodeURIComponent(message)}`;
 
         try {
-            currentEventSource = new EventSource(apiUrl);
+            const res = await fetch(RAG_UPLOAD_URL, { method: 'POST', body: formData });
+            const data = await res.json();
+            if(data.code === '0000') {
+                alert('上传成功！');
+                closeModal('upload-modal');
+                this.reset();
+                document.getElementById('selected-files').innerText = '';
+                loadRagTagsForSelect();
+            } else {
+                alert('上传失败: ' + data.info);
+            }
+        } catch (error) {
+            alert('请求错误，请检查网络或后端服务');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerText = '确认上传';
+            submitBtn.classList.replace('bg-blue-400', 'bg-blue-600');
+        }
+    });
 
-            currentEventSource.onmessage = function(event) {
-                try {
-                    const parsedData = JSON.parse(event.data);
+    // === Git 知识库解析逻辑 ===
+    document.getElementById('git-upload-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const urlInput = document.getElementById('git-url-input').value.trim();
+        const usernameInput = document.getElementById('git-username-input').value.trim();
+        const tokenInput = document.getElementById('git-token-input').value.trim();
 
-                    // 提取文本内容
-                    if (parsedData?.result?.output?.text !== undefined) {
-                        const textChunk = parsedData.result.output.text;
-                        accumulatedText += textChunk;
+        if (!urlInput || !usernameInput || !tokenInput) {
+            alert('请完整填写Git信息！'); return;
+        }
 
-                        // 使用 marked.js 将 Markdown 转换为 HTML
-                        currentBotMsgEl.innerHTML = marked.parse(accumulatedText);
-                        scrollToBottom();
-                    }
+        const submitBtn = document.getElementById('git-upload-btn');
+        submitBtn.disabled = true;
+        submitBtn.innerText = '拉取并解析中...(可能耗时较长)';
+        submitBtn.classList.replace('bg-green-600', 'bg-green-400');
 
-                    // 判断结束标识
-                    const finishReason = parsedData?.result?.metadata?.finishReason;
-                    if (finishReason && finishReason.toLowerCase() === 'stop') {
-                        currentBotMsgEl.classList.remove('typing-cursor');
-                        currentEventSource.close();
-                        currentEventSource = null;
-                    }
+        // 使用 FormData 以适应后端的 @RequestParam
+        const formData = new URLSearchParams();
+        formData.append('reUrl', urlInput);
+        formData.append('userName', usernameInput);
+        formData.append('token', tokenInput);
 
-                } catch (e) {
-                    console.error('解析JSON失败:', e, '原始数据:', event.data);
-                }
-            };
+        try {
+            const res = await fetch(RAG_GIT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: formData.toString()
+            });
+            const data = await res.json();
+            if(data.code === '0000') {
+                alert('Git 仓库解析并存入知识库成功！');
+                closeModal('git-upload-modal');
+                this.reset();
+                loadRagTagsForSelect(); // 刷新下拉框
+            } else {
+                alert('解析失败: ' + data.info);
+            }
+        } catch (error) {
+            alert('请求错误，请检查网络或后端服务');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerText = '开始拉取并解析';
+            submitBtn.classList.replace('bg-green-400', 'bg-green-600');
+        }
+    });
 
-            currentEventSource.onerror = function(err) {
-                console.error('EventSource 错误或结束:', err);
-                currentBotMsgEl.classList.remove('typing-cursor');
-                currentEventSource.close();
-                currentEventSource = null;
-            };
+    // === Tags 展示逻辑 ===
+    async function openTagsModal() {
+        openModal('tags-modal');
+        const listDiv = document.getElementById('tags-list');
+        const loadingDiv = document.getElementById('tags-loading');
+        const emptyDiv = document.getElementById('tags-empty');
 
-        } catch (err) {
-            console.error("创建 EventSource 失败:", err);
-            currentBotMsgEl.classList.remove('typing-cursor');
-            currentBotMsgEl.innerHTML = '<span class="text-red-500">无法连接到服务器。</span>';
+        listDiv.innerHTML = '';
+        loadingDiv.classList.remove('hidden');
+        emptyDiv.classList.add('hidden');
+
+        try {
+            const res = await fetch(RAG_TAGS_URL);
+            const resData = await res.json();
+            loadingDiv.classList.add('hidden');
+
+            if (resData.code === '0000' && resData.data && resData.data.length > 0) {
+                resData.data.forEach(tag => {
+                    const tagEl = document.createElement('span');
+                    tagEl.className = 'px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-lg text-sm font-medium shadow-sm hover:bg-blue-100 cursor-pointer transition';
+                    tagEl.innerText = tag;
+
+                    tagEl.onclick = () => {
+                        const optionExists = Array.from(ragSelectEl.options).some(opt => opt.value === tag);
+                        if (!optionExists) {
+                            const opt = document.createElement('option');
+                            opt.value = tag;
+                            opt.innerText = tag;
+                            ragSelectEl.appendChild(opt);
+                        }
+                        ragSelectEl.value = tag;
+                        closeModal('tags-modal');
+                        inputEl.focus();
+                    };
+                    listDiv.appendChild(tagEl);
+                });
+            } else {
+                emptyDiv.classList.remove('hidden');
+            }
+        } catch (error) {
+            loadingDiv.classList.add('hidden');
+            emptyDiv.innerText = '加载失败，请检查服务连接';
+            emptyDiv.classList.remove('hidden');
         }
     }
+
+    init();
+
 </script>
 </body>
 </html>

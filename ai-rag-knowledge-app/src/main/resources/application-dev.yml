@@ -4,20 +4,33 @@ server:
 spring:
   # 1. AI 配置：与 datasource 平级，不要缩进到里面！
   ai:
+    openai:
+      base-url: https://api2.aigcbest.top
+      api-key: sk-qN3s0oXo3UkMbQpfdB6GbxpaPXSRtcVR0ib3ic7X2jIIupMq
+      embedding:
+        options:
+          model: text-embedding-3-small
+
     vectorstore:
       pgvector:
         initialize-schema: true
     ollama:
       base-url: http://82.157.190.244:11434
       embedding:
+        model: nomic-embed-text # 你的 embedding 模型名称
         options:
-          model: nomic-embed-text
+          num-ctx: 2048  # <-- 加上这一行，限制上下文长度
+        chat:
+          options:
+            num-ctx: 2048  # 建议把对话模型的上下文也同步限制一下
+    rag:
+      embed:nomic-embed-text
 
   # 2. 数据库配置
   datasource:
     driver-class-name: org.postgresql.Driver
     username: postgres
-    password: postgres
+    password: Gong6666!
     url: jdbc:postgresql://82.157.190.244:5432/ai-rag-knowledge
     type: com.zaxxer.hikari.HikariDataSource
     hikari:
