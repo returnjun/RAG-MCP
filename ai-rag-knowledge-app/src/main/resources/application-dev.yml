@@ -24,7 +24,7 @@ spring:
           options:
             num-ctx: 2048  # 建议把对话模型的上下文也同步限制一下
     rag:
-      embed:nomic-embed-text
+      embed: nomic-embed-text
 
   # 2. 数据库配置
   datasource:

@@ -2,4 +2,4 @@ spring:
   application:
     name: ai-rag-knowledge
   profiles:
-    active: dev
+    active: prod
